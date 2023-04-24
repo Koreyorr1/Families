@@ -3,9 +3,9 @@ import javax.swing.*;
 
 
 class IgnoreCheckboxSelectionModel extends DefaultListSelectionModel {
-    private JList<ListItem> list;
+    private JList<Object> list;
 
-    public IgnoreCheckboxSelectionModel(JList<ListItem> list) {
+    public IgnoreCheckboxSelectionModel(JList<Object> list) {
         this.list = list;
     }
 

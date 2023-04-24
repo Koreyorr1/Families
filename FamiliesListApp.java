@@ -4,15 +4,19 @@ import java.awt.event.*;
 import java.io.*;
 import java.util.ArrayList;
 
+
 public class FamiliesListApp {
 
     private JFrame frame;
-    private JList<ListItem> list;
-    private DefaultListModel<ListItem> listModel;
+    private JList<Object> list;
+    private CustomListModel listModel;
     private ArrayList<FamiliesList> FamiliesLists;
     private FamiliesList currentList;
     private JButton backButton;
     private ArrayList<Boolean> itemCheckStates;
+    private CheckBoxListMouseListener checkBoxListMouseListener;
+    private JPanel checkBoxPanel;
+
 
 
     public FamiliesListApp() {
@@ -46,15 +50,18 @@ public class FamiliesListApp {
             }
         });
 
+        checkBoxListMouseListener = new CheckBoxListMouseListener();
 
         Container contentPane = frame.getContentPane();
         contentPane.setLayout(new BorderLayout());
 
-        listModel = new DefaultListModel<>();
-        list = new JList<ListItem>(listModel);
-        list.setSelectionModel(new IgnoreCheckboxSelectionModel(list)); // Set the custom selection model
-        list.addMouseListener(new CheckBoxListMouseListener());
-        list.setCellRenderer(new CheckBoxListRenderer()); // Set the custom cell renderer
+        listModel = new CustomListModel();
+        list = new JList<Object>(listModel);
+        
+        //list.setSelectionModel(new IgnoreCheckboxSelectionModel(list)); // Set the custom selection model
+        list.addMouseListener(checkBoxListMouseListener);
+        
+       list.setCellRenderer(new CheckBoxListRenderer()); // Set the custom cell renderer
         list.setSelectionModel(new DefaultListSelectionModel() { // Allow multiple selections with checkboxes
             @Override
             public void setSelectionInterval(int index0, int index1) {
@@ -80,7 +87,21 @@ public class FamiliesListApp {
             }
         });
         
+        // Create a separate panel for checkboxes
+        checkBoxPanel = new JPanel(new BorderLayout());
+        checkBoxPanel.setLayout(new BoxLayout(checkBoxPanel, BoxLayout.Y_AXIS));
+
+
+        // Add the checkBoxPanel to the left of the JScrollPane
+        JPanel combinedPanel = new JPanel(new BorderLayout());
+        combinedPanel.add(checkBoxPanel, BorderLayout.WEST);
+        combinedPanel.add(new JScrollPane(list), BorderLayout.CENTER);
+
+       
         contentPane.add(new JScrollPane(list), BorderLayout.CENTER);
+        
+        contentPane.add(combinedPanel, BorderLayout.CENTER);
+        
         
         JPanel leftPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         backButton = new JButton("<");
@@ -110,37 +131,74 @@ public class FamiliesListApp {
         rightPanel.add(removeButton);
         
         JPanel topPanel = new JPanel(new BorderLayout());
+        
+        
         topPanel.add(leftPanel, BorderLayout.WEST);
         topPanel.add(rightPanel, BorderLayout.EAST);
         
+        contentPane.add(checkBoxPanel, BorderLayout.WEST);
+        contentPane.add(new JScrollPane(list), BorderLayout.CENTER);
         contentPane.add(topPanel, BorderLayout.NORTH);
+
 
         updateListModel();
         
         frame.setVisible(true);
     }
+    
     private void updateListModel() {
+    	
+    	
+    	int countCheckboxes = checkBoxPanel.getComponentCount();
+    	
+    	System.out.print(countCheckboxes);
+    	
+    	
+    	checkBoxPanel.removeAll();
+    	
+    	
         listModel.clear();
         itemCheckStates.clear();
-
+        
+        
+        
         if (currentList == null) {
+        	
             backButton.setVisible(false);
-            list.setCellRenderer(new DefaultListCellRenderer());
-
+            
+            
+            
             for (FamiliesList list : FamiliesLists) {
-                listModel.addElement((ListItem) list.getItems());
+            	
+            	
+                listModel.addElement(list);
             }
+            
+            
+            
         } else {
+
+        	
+            
             backButton.setVisible(true);
-            list.setCellRenderer(new CheckBoxListRenderer());;
+            checkBoxPanel.revalidate();
+            checkBoxPanel.repaint();
+        
+            list.removeMouseListener(checkBoxListMouseListener);
+            list.setCellRenderer(new CheckBoxListRenderer());
 
             for (ListItem item : currentList.getItems()) {
+            	
+            	CustomCheckBox checkBox = new CustomCheckBox();
+                checkBoxPanel.add(checkBox);
+                
                 listModel.addElement(item);
                 itemCheckStates.add(false);
             }
         }
     }
     
+   
     
     private static final String DATA_FILE = "families_list_data.ser";
 
@@ -155,19 +213,32 @@ public class FamiliesListApp {
     }
 
     private void loadData() {
-        File file = new File(DATA_FILE);
-        if (file.exists()) {
-            try (FileInputStream fis = new FileInputStream(file);
-                 ObjectInputStream ois = new ObjectInputStream(fis)) {
+    	 File file = new File(DATA_FILE);
+    	    if (file.exists()) {
+    	        try {
+    	            FileInputStream fis = new FileInputStream(file);
+    	            ObjectInputStream ois = new ObjectInputStream(fis);
+    	            FamiliesLists = (ArrayList<FamiliesList>) ois.readObject();
+    	            ois.close();
+    	            fis.close();
+    	        } catch (IOException | ClassNotFoundException e) {
+    	            e.printStackTrace();
+    	        }
 
-                FamiliesLists = (ArrayList<FamiliesList>) ois.readObject();
-            } catch (IOException | ClassNotFoundException e) {
-                e.printStackTrace();
-            }
-        }
+    	        // Convert the deserialized item names to ListItem objects
+    	        for (FamiliesList list : FamiliesLists) {
+    	            ArrayList<ListItem> items = new ArrayList<>();
+    	            for (String itemName : list.getItemNames()) {
+    	                items.add(new ListItem(itemName, false));
+    	            }
+    	            list.setItems(items);
+    	        }
+    	    }
     }
 
-
+    private class CustomListModel extends DefaultListModel<Object> {
+    	}
+    
     private class AddButtonListener implements ActionListener {
         @Override
         public void actionPerformed(ActionEvent e) {
@@ -195,7 +266,7 @@ public class FamiliesListApp {
                     public void actionPerformed(ActionEvent e) {
                         String listName = listNameField.getText().trim();
                         String shareWith = shareWithField.getText().trim(); // You can use this value to share the list if needed.
-
+                        
                         if (!listName.isEmpty()) {
                             FamiliesLists.add(new FamiliesList(listName));
                             updateListModel();
@@ -249,8 +320,25 @@ public class FamiliesListApp {
             int selectedIndex = list.getSelectedIndex();
 
             if (selectedIndex != -1) {
-                ListItem currentName = listModel.getElementAt(selectedIndex);
-
+            	if (currentList == null) {
+            		FamiliesList currentName = (FamiliesList) listModel.getElementAt(selectedIndex);
+            		
+            		 String newName = (String) JOptionPane.showInputDialog(
+                             frame,
+                             "Enter a new name:",
+                             "Rename",
+                             JOptionPane.PLAIN_MESSAGE,
+                             null,
+                             null,
+                             currentName);
+            		 if (newName != null && !newName.trim().isEmpty()) {
+            			 FamiliesLists.get(selectedIndex).setName(newName);
+            		 }
+            		
+            		}else {
+            	
+            			ListItem currentName = (ListItem) listModel.getElementAt(selectedIndex);
+            		
                 String newName = (String) JOptionPane.showInputDialog(
                         frame,
                         "Enter a new name:",
@@ -259,14 +347,10 @@ public class FamiliesListApp {
                         null,
                         null,
                         currentName);
-
+                
                 if (newName != null && !newName.trim().isEmpty()) {
-                    if (currentList == null) {
-                        FamiliesLists.get(selectedIndex).setName(newName);
-                    } else {
                         currentList.updateItem(selectedIndex, newName);
-                    }
-
+                }
                     updateListModel();
                 }
             }
@@ -291,35 +375,100 @@ public class FamiliesListApp {
         }
     }
     
-    private class CheckBoxListRenderer extends JCheckBox implements ListCellRenderer<ListItem> {
+    private class CustomCheckBox extends JCheckBox {
+        private boolean showCheckbox = true;
+
+        public CustomCheckBox() {
+            super();
+        }
+
+        public void setShowCheckbox(boolean showCheckbox) {
+            this.showCheckbox = showCheckbox;
+        }
 
         @Override
-        public Component getListCellRendererComponent(JList<? extends ListItem> list, ListItem value, int index,
-                                                      boolean isSelected, boolean cellHasFocus) {
-            setText(value.getText());
-            setSelected(value.isChecked());
-            setOpaque(true);
-
-            if (isSelected) {
-                setBackground(list.getSelectionBackground());
-                setForeground(list.getSelectionForeground());
-            } else {
-                setBackground(list.getBackground());
-                setForeground(list.getForeground());
+        protected void paintComponent(Graphics g) {
+            if (showCheckbox) {
+                super.paintComponent(g);
             }
+        }
+    }
 
-            setEnabled(list.isEnabled());
-            setFont(list.getFont());
+    private class RoundedPanel extends JPanel {
+        private int cornerRadius = 15;
 
-            if (currentList != null) {
-                setVisible(true);
-            } else {
-                setVisible(false);
+        public RoundedPanel() {
+            super();
+            setBackground(new Color(230, 230, 230)); // Set the background color
+            setBorder(BorderFactory.createEmptyBorder(3, 3, 3, 3)); // Add some padding
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            g.setColor(getBackground());
+            g.fillRoundRect(0, 0, getWidth() - 1, getHeight() - 1, cornerRadius, cornerRadius);
+            super.paintComponent(g);
+            g.setColor(Color.BLACK); // Set the border color
+            g.drawRoundRect(0, 0, getWidth() - 1, getHeight() - 1, cornerRadius, cornerRadius); // Draw the border
+        }
+    }
+
+
+
+    private class CheckBoxListRenderer extends RoundedPanel implements ListCellRenderer<Object> {
+
+        private JCheckBox checkBox;
+        private JLabel label;
+
+        public CheckBoxListRenderer() {
+            setLayout(new BorderLayout());
+            setOpaque(false);
+            checkBox = new JCheckBox();
+            label = new JLabel();
+            add(checkBox, BorderLayout.WEST);
+            add(label, BorderLayout.CENTER);
+        }
+
+        @Override
+        public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                                                      boolean isSelected, boolean cellHasFocus) {
+
+            if (value instanceof ListItem) {
+                ListItem item = (ListItem) value;
+
+                label.setText(item.getText());
+                setSelected(item.isChecked());
+                setBackground(isSelected ? list.getSelectionBackground() : list.getBackground());
+                setForeground(isSelected ? list.getSelectionForeground() : list.getForeground());
+                setShowCheckbox(true);
+                checkBox.setEnabled(false);
+                checkBox.setVisible(false);
+            } else if (value instanceof FamiliesList) {
+                FamiliesList familyList = (FamiliesList) value;
+
+                label.setText(familyList.getName());
+                setSelected(false);
+                setBackground(isSelected ? list.getSelectionBackground() : list.getBackground());
+                setForeground(isSelected ? list.getSelectionForeground() : list.getForeground());
+                setEnabled(false); // Disable the checkbox for list names
+                setShowCheckbox(false);
+                checkBox.setEnabled(false);
+                checkBox.setVisible(false);
             }
 
             return this;
         }
+
+        private void setSelected(boolean selected) {
+            checkBox.setSelected(selected);
+        }
+
+        private void setShowCheckbox(boolean showCheckbox) {
+            checkBox.setVisible(showCheckbox);
+        }
     }
+
+
     
     private class CheckBoxListMouseListener extends MouseAdapter {
         @Override
@@ -327,9 +476,9 @@ public class FamiliesListApp {
             int index = list.locationToIndex(e.getPoint());
 
             if (index != -1 && currentList != null) {
-                ListItem item = list.getModel().getElementAt(index);
-                Rectangle checkBoxBounds = list.getCellBounds(index, index);
-                int xOffset = e.getPoint().x - checkBoxBounds.x;
+                ListItem item = (ListItem) list.getModel().getElementAt(index);
+                Rectangle cellBounds = list.getCellBounds(index, index);
+                int xOffset = e.getPoint().x - cellBounds.x;
 
                 JCheckBox tempCheckBox = new JCheckBox();
                 int checkBoxWidth = tempCheckBox.getPreferredSize().width;
@@ -342,6 +491,7 @@ public class FamiliesListApp {
             }
         }
     }
+
 
 
     public static void main(String[] args) {
