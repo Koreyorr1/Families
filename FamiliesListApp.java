@@ -4,6 +4,17 @@ import java.awt.event.*;
 import java.io.*;
 import java.util.ArrayList;
 
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.firebase.FirebaseApp;
+import com.google.firebase.FirebaseOptions;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.DataSnapshot;
+import com.google.firebase.database.DatabaseError;
+import com.google.firebase.database.DatabaseReference;
+import com.google.firebase.database.FirebaseDatabase;
+import com.google.firebase.database.ValueEventListener;
+
+
 
 public class FamiliesListApp {
 
@@ -22,11 +33,66 @@ public class FamiliesListApp {
     public FamiliesListApp() {
         FamiliesLists = new ArrayList<>();
         itemCheckStates = new ArrayList<>();
+       
+        
         loadData();
     }
+    
+
+
+    private void initializeFirebase() {
+        try {
+            // Set the path to the service account key JSON file
+            FileInputStream serviceAccount = new FileInputStream("/Users/korey/eclipse-workspace/Families");
+
+            // Initialize the Firebase Admin SDK
+            FirebaseOptions options = FirebaseOptions.builder()
+                    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
+                    .setDatabaseUrl("https://families-1c9ea-default-rtdb.firebaseio.com")
+                    .build();
+
+            FirebaseApp.initializeApp(options);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        
+    }
+    
+    private void writeToDatabase() {
+        FirebaseDatabase database = FirebaseDatabase.getInstance();
+        DatabaseReference ref = database.getReference("path/to/data");
+
+        // Write data to the database
+        ref.setValue("Hello, Firebase Realtime Database!");
+    }
+
+    private void readFromDatabase() {
+        FirebaseDatabase database = FirebaseDatabase.getInstance();
+        DatabaseReference ref = database.getReference("path/to/data");
+
+        // Read data from the database
+        ref.addListenerForSingleValueEvent(new ValueEventListener() {
+            @Override
+            public void onDataChange(DataSnapshot dataSnapshot) {
+                String value = dataSnapshot.getValue(String.class);
+                System.out.println("Value from the database: " + value);
+            }
+
+            @Override
+            public void onCancelled(DatabaseError databaseError) {
+                System.out.println("Error reading from the database: " + databaseError.toException());
+            }
+			
+        });
+    }
+
+
+    
 
     public void createAndShowGUI() {
         // Set the Nimbus Look and Feel
+
+
         try {
             for (UIManager.LookAndFeelInfo info : UIManager.getInstalledLookAndFeels()) {
                 if ("Nimbus".equals(info.getName())) {
