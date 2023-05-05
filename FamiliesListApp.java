@@ -3,6 +3,7 @@ import java.awt.*;
 import java.awt.event.*;
 import java.io.*;
 import java.util.ArrayList;
+import java.util.Base64;
 
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.firebase.FirebaseApp;
@@ -11,12 +12,22 @@ import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.DataSnapshot;
 import com.google.firebase.database.DatabaseError;
 import com.google.firebase.database.DatabaseReference;
-import com.google.firebase.database.FirebaseDatabase;
 import com.google.firebase.database.ValueEventListener;
+import com.google.firebase.auth.FirebaseAuth;
+import com.google.api.client.http.GenericUrl;
+import com.google.api.client.http.HttpRequest;
+import com.google.api.client.http.HttpRequestFactory;
+import com.google.api.client.http.HttpResponse;
+import com.google.api.client.http.HttpTransport;
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.api.client.json.JsonFactory;
+import com.google.api.client.json.JsonObjectParser;
+import com.google.api.client.json.gson.GsonFactory;
 
 
 
-public class FamiliesListApp {
+
+public class FamiliesListApp extends Main {
 
     private JFrame frame;
     private JList<Object> list;
@@ -27,7 +38,8 @@ public class FamiliesListApp {
     private ArrayList<Boolean> itemCheckStates;
     private CheckBoxListMouseListener checkBoxListMouseListener;
     private JPanel checkBoxPanel;
-
+    private static final HttpTransport HTTP_TRANSPORT = new NetHttpTransport();
+    private static final JsonFactory JSON_FACTORY = GsonFactory.getDefaultInstance();
 
 
     public FamiliesListApp() {
@@ -35,59 +47,9 @@ public class FamiliesListApp {
         itemCheckStates = new ArrayList<>();
        
         
+       // initializeFirebase();
         loadData();
     }
-    
-
-
-    private void initializeFirebase() {
-        try {
-            // Set the path to the service account key JSON file
-            FileInputStream serviceAccount = new FileInputStream("/Users/korey/eclipse-workspace/Families");
-
-            // Initialize the Firebase Admin SDK
-            FirebaseOptions options = FirebaseOptions.builder()
-                    .setCredentials(GoogleCredentials.fromStream(serviceAccount))
-                    .setDatabaseUrl("https://families-1c9ea-default-rtdb.firebaseio.com")
-                    .build();
-
-            FirebaseApp.initializeApp(options);
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
-        
-    }
-    
-    private void writeToDatabase() {
-        FirebaseDatabase database = FirebaseDatabase.getInstance();
-        DatabaseReference ref = database.getReference("path/to/data");
-
-        // Write data to the database
-        ref.setValue("Hello, Firebase Realtime Database!");
-    }
-
-    private void readFromDatabase() {
-        FirebaseDatabase database = FirebaseDatabase.getInstance();
-        DatabaseReference ref = database.getReference("path/to/data");
-
-        // Read data from the database
-        ref.addListenerForSingleValueEvent(new ValueEventListener() {
-            @Override
-            public void onDataChange(DataSnapshot dataSnapshot) {
-                String value = dataSnapshot.getValue(String.class);
-                System.out.println("Value from the database: " + value);
-            }
-
-            @Override
-            public void onCancelled(DatabaseError databaseError) {
-                System.out.println("Error reading from the database: " + databaseError.toException());
-            }
-			
-        });
-    }
-
-
-    
 
     public void createAndShowGUI() {
         // Set the Nimbus Look and Feel
@@ -264,24 +226,28 @@ public class FamiliesListApp {
         }
     }
     
-   
-    
-    private static final String DATA_FILE = "families_list_data.ser";
+    private static final String DATA_FILE = "temp.ser";
 
     private void saveData() {
         try (FileOutputStream fos = new FileOutputStream(DATA_FILE);
-             ObjectOutputStream oos = new ObjectOutputStream(fos)) {
-
+        		ObjectOutputStream oos = new ObjectOutputStream(fos)) {
+        	
+        	String base64String = serializeObjectToBase64(oos);
             oos.writeObject(FamiliesLists);
+            super.writeToDatabase(base64String);
+            
         } catch (IOException e) {
             e.printStackTrace();
         }
+        
     }
 
     private void loadData() {
     	 File file = new File(DATA_FILE);
+    	 super.readFromDatabase();
     	    if (file.exists()) {
     	        try {
+    	        	
     	            FileInputStream fis = new FileInputStream(file);
     	            ObjectInputStream ois = new ObjectInputStream(fis);
     	            FamiliesLists = (ArrayList<FamiliesList>) ois.readObject();
@@ -300,6 +266,19 @@ public class FamiliesListApp {
     	            list.setItems(items);
     	        }
     	    }
+    }
+
+    public static String serializeObjectToBase64(Object object) {
+        try {
+            ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
+            ObjectOutputStream objectOutputStream = new ObjectOutputStream(byteArrayOutputStream);
+            objectOutputStream.writeObject(object);
+            objectOutputStream.close();
+            return Base64.getEncoder().encodeToString(byteArrayOutputStream.toByteArray());
+        } catch (IOException e) {
+            e.printStackTrace();
+            return null;
+        }
     }
 
     private class CustomListModel extends DefaultListModel<Object> {
@@ -480,7 +459,6 @@ public class FamiliesListApp {
     }
 
 
-
     private class CheckBoxListRenderer extends RoundedPanel implements ListCellRenderer<Object> {
 
         private JCheckBox checkBox;
@@ -533,8 +511,6 @@ public class FamiliesListApp {
             checkBox.setVisible(showCheckbox);
         }
     }
-
-
     
     private class CheckBoxListMouseListener extends MouseAdapter {
         @Override
@@ -558,9 +534,7 @@ public class FamiliesListApp {
         }
     }
 
-
-
-    public static void main(String[] args) {
+    public static void runLists() {
         SwingUtilities.invokeLater(new Runnable() {
             public void run() {
                 FamiliesListApp app = new FamiliesListApp();
